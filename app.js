@@ -600,7 +600,11 @@ function friendlyAuthError(err) {
   if (code === "auth/email-already-in-use") return "Email already in use. Try signing in.";
   if (code === "auth/weak-password") return "Password is too weak (min 6 characters).";
   if (code === "auth/popup-closed-by-user") return "Google sign-in popup was closed.";
-  if (code === "auth/unauthorized-domain") return "This domain is not authorized in Firebase Auth.";
+  if (code === "auth/unauthorized-domain") {
+    const host = typeof window !== "undefined" ? window.location.host : "";
+    const suffix = host ? ` Add this domain in Firebase Console → Authentication → Settings → Authorized domains: ${host}` : " Add your site domain in Firebase Console → Authentication → Settings → Authorized domains.";
+    return `This domain is not authorized in Firebase Auth.${suffix}`;
+  }
   return err?.message || "Sign-in failed.";
 }
 

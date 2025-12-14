@@ -17,6 +17,17 @@
 5. Project settings → Your apps → Web app → copy the config
 6. Copy `firebase-config.example.js` to `firebase-config.js` and fill values.
 
+### Fix "This domain is not authorized" on deploy
+If your deployed site shows "This domain is not authorized in Firebase Auth.", add your deployed domain in:
+
+- Firebase Console → Authentication → Settings → Authorized domains → Add domain
+
+Examples:
+- GitHub Pages: add `YOUR_USERNAME.github.io`
+- Custom domain: add your domain (no path)
+
+Then redeploy and refresh.
+
 ### Deploy note (important)
 This app loads Firebase settings from `./firebase-config.js` at runtime.
 
@@ -26,6 +37,8 @@ If it works locally but shows "Missing Firebase config" after deploy, it usually
 - Firebase Hosting: make sure `firebase-config.js` is inside the folder you deploy (usually `public/`).
 
 Note: Firebase Web config values (like `apiKey`, `authDomain`, etc.) are not secrets; security comes from Auth + Firestore Rules.
+
+If you want extra protection against quota abuse, you can restrict the API key to your site domain in Google Cloud Console (APIs & Services → Credentials → API key restrictions), and/or enable Firebase App Check.
 
 ## Run locally
 Because this uses ES modules, you should run with a local server (not double-click the HTML file).
