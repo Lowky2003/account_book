@@ -103,23 +103,13 @@ export async function signInWithGooglePopup() {
   if (!auth) throw new Error("Firebase not initialized");
   const provider = new GoogleAuthProvider();
 
-  // Mobile browsers (and many in-app browsers) commonly block popups.
-  // Prefer redirect on coarse pointers (phones/tablets).
-  const preferRedirect =
-    typeof window !== "undefined" &&
-    window.matchMedia &&
-    window.matchMedia("(pointer: coarse)").matches;
-
-  if (preferRedirect) {
-    await signInWithRedirect(auth, provider);
-    return null;
-  }
-
+  // Popup is generally the most reliable across mobile browsers because it
+  // doesn't rely on sessionStorage surviving a full-page redirect.
+  // If the environment blocks popups, fall back to redirect.
   try {
     await signInWithPopup(auth, provider);
     return auth.currentUser;
   } catch (e) {
-    // Fallback to redirect if popup is blocked/unsupported.
     const code = e?.code || "";
     if (
       code === "auth/popup-blocked" ||

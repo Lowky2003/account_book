@@ -648,6 +648,7 @@ async function setSignedInUi(user) {
 
 function friendlyAuthError(err) {
   const code = err?.code || "";
+  const msg = String(err?.message || "").toLowerCase();
   if (code === "auth/invalid-credential") return "Wrong email or password.";
   if (code === "auth/user-not-found") return "No account found for this email.";
   if (code === "auth/wrong-password") return "Wrong email or password.";
@@ -657,6 +658,9 @@ function friendlyAuthError(err) {
   if (code === "auth/popup-blocked") return "Google sign-in popup was blocked by the browser. Try again or use a normal browser (Chrome/Safari).";
   if (code === "auth/operation-not-supported-in-this-environment") {
     return "Google sign-in is not supported in this browser (common in in-app browsers). Open the site in Chrome/Safari and try again.";
+  }
+  if (msg.includes("requested action is invalid")) {
+    return "Google sign-in failed in this mobile browser. Try opening the site in Chrome/Safari (not an in-app browser), and confirm your domain is added to Firebase Auth → Authorized domains.";
   }
   if (code === "auth/unauthorized-domain") {
     const host = typeof window !== "undefined" ? window.location.host : "";
