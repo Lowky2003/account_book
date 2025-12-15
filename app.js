@@ -654,6 +654,10 @@ function friendlyAuthError(err) {
   if (code === "auth/email-already-in-use") return "Email already in use. Try signing in.";
   if (code === "auth/weak-password") return "Password is too weak (min 6 characters).";
   if (code === "auth/popup-closed-by-user") return "Google sign-in popup was closed.";
+  if (code === "auth/popup-blocked") return "Google sign-in popup was blocked by the browser. Try again or use a normal browser (Chrome/Safari).";
+  if (code === "auth/operation-not-supported-in-this-environment") {
+    return "Google sign-in is not supported in this browser (common in in-app browsers). Open the site in Chrome/Safari and try again.";
+  }
   if (code === "auth/unauthorized-domain") {
     const host = typeof window !== "undefined" ? window.location.host : "";
     const suffix = host ? ` Add this domain in Firebase Console → Authentication → Settings → Authorized domains: ${host}` : " Add your site domain in Firebase Console → Authentication → Settings → Authorized domains.";

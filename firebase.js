@@ -6,6 +6,8 @@ import {
   signInWithEmailAndPassword,
   GoogleAuthProvider,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signOut,
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import {
@@ -44,6 +46,13 @@ export async function initFirebase() {
   auth = getAuth(app);
   db = getFirestore(app);
 
+  // If a Google sign-in redirect just happened, process it so errors don't get swallowed.
+  try {
+    await getRedirectResult(auth);
+  } catch {
+    // ignore; UI will show auth state via onAuthStateChanged
+  }
+
   return { ok: true };
 }
 
@@ -67,8 +76,35 @@ export async function signInWithEmailPassword(email, password) {
 export async function signInWithGooglePopup() {
   if (!auth) throw new Error("Firebase not initialized");
   const provider = new GoogleAuthProvider();
-  await signInWithPopup(auth, provider);
-  return auth.currentUser;
+
+  // Mobile browsers (and many in-app browsers) commonly block popups.
+  // Prefer redirect on coarse pointers (phones/tablets).
+  const preferRedirect =
+    typeof window !== "undefined" &&
+    window.matchMedia &&
+    window.matchMedia("(pointer: coarse)").matches;
+
+  if (preferRedirect) {
+    await signInWithRedirect(auth, provider);
+    return null;
+  }
+
+  try {
+    await signInWithPopup(auth, provider);
+    return auth.currentUser;
+  } catch (e) {
+    // Fallback to redirect if popup is blocked/unsupported.
+    const code = e?.code || "";
+    if (
+      code === "auth/popup-blocked" ||
+      code === "auth/popup-closed-by-user" ||
+      code === "auth/operation-not-supported-in-this-environment"
+    ) {
+      await signInWithRedirect(auth, provider);
+      return null;
+    }
+    throw e;
+  }
 }
 
 export async function signOutUser() {
