@@ -635,7 +635,6 @@ function setSignedOutUi() {
   els.appContent.hidden = true;
   els.authCard.hidden = false;
   els.signOutBtn.disabled = true;
-  setAuthError("");
 }
 
 async function setSignedInUi(user) {
@@ -643,6 +642,7 @@ async function setSignedInUi(user) {
   els.authCard.hidden = true;
   els.appContent.hidden = false;
   els.signOutBtn.disabled = false;
+  setAuthError("");
   await startListenersForUser(uid);
 }
 
@@ -931,6 +931,10 @@ async function main() {
     setWarning(init.reason);
     setAuthStatus("Firebase not configured");
     return;
+  }
+
+  if (init.redirectError) {
+    setAuthError(friendlyAuthError(init.redirectError));
   }
 
   setWarning("");

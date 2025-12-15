@@ -8,6 +8,9 @@ import {
   signInWithPopup,
   signInWithRedirect,
   getRedirectResult,
+  setPersistence,
+  browserLocalPersistence,
+  browserSessionPersistence,
   signOut,
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 import {
@@ -46,14 +49,32 @@ export async function initFirebase() {
   auth = getAuth(app);
   db = getFirestore(app);
 
+  // Improve cross-browser session behavior (especially mobile / private modes).
+  // If local persistence is blocked, fall back to session persistence.
+  try {
+    await setPersistence(auth, browserLocalPersistence);
+  } catch {
+    try {
+      await setPersistence(auth, browserSessionPersistence);
+    } catch {
+      // ignore; Firebase will fall back to in-memory persistence
+    }
+  }
+
   // If a Google sign-in redirect just happened, process it so errors don't get swallowed.
   try {
     await getRedirectResult(auth);
-  } catch {
-    // ignore; UI will show auth state via onAuthStateChanged
+  } catch (e) {
+    return {
+      ok: true,
+      redirectError: {
+        code: e?.code || "",
+        message: e?.message || "",
+      },
+    };
   }
 
-  return { ok: true };
+  return { ok: true, redirectError: null };
 }
 
 export function watchAuth(callback) {
