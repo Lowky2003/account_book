@@ -820,6 +820,18 @@ function wireEvents() {
     txPage = 1;
     renderCategoriesTable();
     renderTransactionsTable();
+
+    // Mobile convenience: jump to the records section after selecting a category.
+    if (
+      typeof window !== "undefined" &&
+      window.matchMedia &&
+      window.matchMedia("(max-width: 979px)").matches
+    ) {
+      const recordCard = document.querySelector(".record-card");
+      if (recordCard && typeof recordCard.scrollIntoView === "function") {
+        recordCard.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }
   });
 
   els.txForm.addEventListener("submit", async (e) => {
