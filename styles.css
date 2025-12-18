@@ -365,7 +365,7 @@ input:focus, select:focus {
   #confirmToast {
     top: 50%;
     left: 50%;
-    bottom: auto;
+    bottom: 300px;
     transform: translate(-50%, -50%);
     width: min(520px, calc(100% - 20px));
   }
