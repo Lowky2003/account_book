@@ -351,7 +351,7 @@ input:focus, select:focus {
 #confirmToast {
   position: fixed;
   left: 50%;
-  bottom: 72px;
+  bottom: 96px;
   transform: translateX(-50%);
   width: min(460px, calc(100% - 32px));
   z-index: 21;
@@ -364,9 +364,10 @@ input:focus, select:focus {
 @media (max-width: 700px) {
   #confirmToast {
     top: 50%;
+    left: 50%;
     bottom: auto;
     transform: translate(-50%, -50%);
-    width: min(520px, calc(100% - 24px));
+    width: min(520px, calc(100% - 20px));
   }
 }
 
