@@ -750,3 +750,187 @@ body {
   }
 }
 
+/* ============================================
+   VOICE / TEXT ASSISTANT
+   ============================================ */
+
+/* Floating action button */
+.assistant-fab {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 50;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 2px solid var(--primary);
+  background: var(--card);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.18);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.assistant-fab:hover {
+  transform: scale(1.08);
+  box-shadow: 0 6px 28px rgba(0,0,0,0.25);
+}
+.assistant-fab .fab-icon {
+  font-size: 24px;
+  line-height: 1;
+}
+
+/* Panel */
+.assistant-panel {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 60;
+  max-height: 70vh;
+  background: var(--card);
+  border-top: 1px solid var(--border);
+  border-radius: 18px 18px 0 0;
+  box-shadow: 0 -8px 40px rgba(0,0,0,0.18);
+  display: flex;
+  flex-direction: column;
+  animation: panel-up 0.3s ease-out;
+}
+@keyframes panel-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+.assistant-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.assistant-title {
+  font-weight: 700;
+  font-size: 15px;
+  flex: 1;
+}
+
+/* Chat area */
+.assistant-chat {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 120px;
+  max-height: 40vh;
+}
+
+.chat-bubble {
+  max-width: 85%;
+  padding: 10px 14px;
+  border-radius: 14px;
+  font-size: 13px;
+  line-height: 1.5;
+  word-break: break-word;
+}
+.chat-user {
+  align-self: flex-end;
+  background: var(--btn-bg);
+  border: 1px solid var(--btn-border);
+  color: var(--text);
+}
+.chat-bot {
+  align-self: flex-start;
+  background: var(--stat-bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+.chat-bot .chat-amount {
+  font-size: 18px;
+  font-weight: 700;
+  display: block;
+  margin-top: 4px;
+}
+.chat-bot .chat-success {
+  color: #16a34a;
+}
+:root[data-theme="dark"] .chat-bot .chat-success {
+  color: #4ade80;
+}
+.chat-bot .chat-detail {
+  font-size: 11px;
+  color: var(--muted);
+  display: block;
+  margin-top: 2px;
+}
+.chat-thinking {
+  align-self: flex-start;
+  color: var(--muted);
+  font-style: italic;
+  font-size: 12px;
+}
+
+/* Input row */
+.assistant-input-row {
+  display: flex;
+  gap: 8px;
+  padding: 10px 16px;
+  padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.assistant-input-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Mic button */
+.assistant-mic {
+  position: relative;
+  font-size: 18px;
+  min-width: 44px;
+}
+.assistant-mic.listening {
+  border-color: var(--danger);
+  background: var(--danger-bg);
+  animation: mic-pulse 1s ease-in-out infinite;
+}
+@keyframes mic-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.3); }
+  50%      { box-shadow: 0 0 0 10px rgba(220, 53, 69, 0); }
+}
+
+/* Desktop: panel is a floating card instead of full-width bottom sheet */
+@media (min-width: 600px) {
+  .assistant-panel {
+    left: auto;
+    right: 24px;
+    bottom: 90px;
+    max-height: 60vh;
+    width: 400px;
+    border-radius: 18px;
+    border: 1px solid var(--border);
+  }
+  .assistant-fab {
+    bottom: 24px;
+    right: 24px;
+  }
+}
+
+/* Mobile: undo toast must not overlap the FAB */
+@media (max-width: 979px) {
+  .assistant-fab {
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    right: 16px;
+    width: 52px;
+    height: 52px;
+  }
+  #undoToast {
+    bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+  }
+}
+

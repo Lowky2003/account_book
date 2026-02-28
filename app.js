@@ -87,6 +87,14 @@ const els = {
   projectedExpense: document.getElementById("projectedExpense"),
   daysLeft: document.getElementById("daysLeft"),
 
+  assistantFab: document.getElementById("assistantFab"),
+  assistantPanel: document.getElementById("assistantPanel"),
+  closeAssistant: document.getElementById("closeAssistant"),
+  assistantChat: document.getElementById("assistantChat"),
+  assistantInput: document.getElementById("assistantInput"),
+  assistantMicBtn: document.getElementById("assistantMicBtn"),
+  assistantSendBtn: document.getElementById("assistantSendBtn"),
+
   statsRange: document.getElementById("statsRange"),
   statsDateField: document.getElementById("statsDateField"),
   statsAnchorDate: document.getElementById("statsAnchorDate"),
@@ -1089,6 +1097,8 @@ function setSignedOutUi() {
   els.appContent.hidden = true;
   els.authCard.hidden = false;
   els.signOutBtn.disabled = true;
+  if (els.assistantFab) els.assistantFab.hidden = true;
+  if (els.assistantPanel) els.assistantPanel.hidden = true;
 }
 
 async function setSignedInUi(user) {
@@ -1096,6 +1106,7 @@ async function setSignedInUi(user) {
   els.authCard.hidden = true;
   els.appContent.hidden = false;
   els.signOutBtn.disabled = false;
+  if (els.assistantFab) els.assistantFab.hidden = false;
   setAuthError("");
   setAppError("");
   await startListenersForUser(uid);
@@ -1442,6 +1453,629 @@ function renderProjection(range, start, endExclusive) {
   if (els.dailyAvgExpense) els.dailyAvgExpense.textContent = money(dailyAvg);
   if (els.projectedExpense) els.projectedExpense.textContent = `~${money(projected)}`;
   if (els.daysLeft) els.daysLeft.textContent = `${remaining} days`;
+}
+
+/* =============================================
+   BILINGUAL NLP ASSISTANT ENGINE
+   Chinese + English + Mixed (Manglish)
+   ============================================= */
+
+// --- Chinese number parser ---
+function parseChinese(text) {
+  const digits = { 零:0,〇:0,一:1,二:2,两:2,三:3,四:4,五:5,六:6,七:7,八:8,九:9 };
+  const units = { 十:10,百:100,千:1000,万:10000,亿:100000000 };
+
+  // Simple shorthand like "两百五" = 250, "一百二" = 120
+  let s = text.replace(/块|元|令吉|ringgit/gi, "").trim();
+  if (!s) return NaN;
+
+  // If it's already a plain number, return it
+  const plain = parseFloat(s);
+  if (!isNaN(plain) && /^[\d.]+$/.test(s)) return plain;
+
+  // Mixed: "18块" already stripped to "18"
+  const mixed = parseFloat(s);
+  if (!isNaN(mixed) && /^\d/.test(s)) return mixed;
+
+  let result = 0;
+  let current = 0;
+  let lastUnit = 1;
+
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (digits[ch] !== undefined) {
+      current = digits[ch];
+    } else if (units[ch] !== undefined) {
+      const u = units[ch];
+      if (u >= 10000) {
+        result = (result + (current || 1)) * u;
+        current = 0;
+        lastUnit = u;
+      } else {
+        if (current === 0 && u === 10 && result === 0) current = 1;
+        result += (current || 1) * u;
+        current = 0;
+        lastUnit = u;
+      }
+    }
+  }
+
+  // Trailing digit shorthand: "两百五" → current=5, lastUnit=100 → 5 * 10 = 50
+  if (current > 0) {
+    if (lastUnit >= 100 && current < 10) {
+      result += current * (lastUnit / 10);
+    } else {
+      result += current;
+    }
+  }
+
+  return result || NaN;
+}
+
+function extractAmount(text) {
+  // Try patterns: "18.5", "RM18.5", "$18.5", "18块5", "18.5块"
+  const rmMatch = text.match(/(?:rm|RM|MYR|myr)\s*([\d,.]+)/);
+  if (rmMatch) return parseFloat(rmMatch[1].replace(/,/g, ""));
+
+  const numMatch = text.match(/([\d]+\.[\d]+|[\d]+)/);
+  const chineseAmount = parseChinese(text);
+
+  if (numMatch && !isNaN(chineseAmount)) {
+    // Prefer the explicitly parsed number
+    return Math.max(parseFloat(numMatch[0]), chineseAmount) || parseFloat(numMatch[0]);
+  }
+  if (numMatch) return parseFloat(numMatch[0]);
+  if (!isNaN(chineseAmount) && chineseAmount > 0) return chineseAmount;
+  return null;
+}
+
+// --- Category mapping ---
+const CATEGORY_MAP = [
+  // Food
+  { keys: ["food","eat","meal","makan","lunch","dinner","breakfast","吃","饭","餐","鸡饭","chicken rice","nasi","面","mee","粉","饮料","drink","kopi","coffee","tea","茶","奶茶","boba","snack","零食","外卖","takeaway","bento","便当","burger","pizza","sushi","火锅","hotpot","bakery","面包","蛋糕","cake","supper","宵夜"], cat: "food" },
+  // Fuel / Transport
+  { keys: ["fuel","gas","petrol","diesel","油","打油","加油","transport","grab","taxi","uber","parking","停车","toll","过路费","bus","train","火车","巴士","地铁","mrt","lrt"], cat: "fuel" },
+  // Shopping
+  { keys: ["shop","shopping","购物","买","buy","bought","淘宝","taobao","shopee","lazada","amazon","mall","商场"], cat: "shopping" },
+  // Daily / Groceries
+  { keys: ["grocery","groceries","daily","日常","杂货","超市","supermarket","market","菜","蔬菜","水果","fruit"], cat: "daily" },
+  // Entertainment
+  { keys: ["entertainment","movie","电影","game","游戏","karaoke","ktv","concert","演唱会","bar","pub","club","娱乐"], cat: "entertainment" },
+  // Bills / Utilities
+  { keys: ["bill","utility","utilities","电费","水费","网费","电话费","phone","internet","wifi","subscription","订阅","netflix","spotify"], cat: "bills" },
+  // Rental / Housing
+  { keys: ["rent","rental","房租","住房","housing","mortgage","贷款"], cat: "rental" },
+  // Health / Medical
+  { keys: ["health","medical","doctor","hospital","药","medicine","clinic","诊所","医院","牙","dental"], cat: "health" },
+  // Education
+  { keys: ["education","school","学费","tuition","book","书","course","课程","学习"], cat: "education" },
+  // Salary / Income
+  { keys: ["salary","工资","薪水","income","收入","bonus","奖金","freelance","兼职","dividend","利息","interest"], cat: "salary" },
+];
+
+function detectCategory(text) {
+  const lower = text.toLowerCase();
+  let best = null;
+  let bestScore = 0;
+  for (const group of CATEGORY_MAP) {
+    for (const key of group.keys) {
+      if (lower.includes(key) && key.length > bestScore) {
+        best = group.cat;
+        bestScore = key.length;
+      }
+    }
+  }
+  return best;
+}
+
+// --- Item name extraction ---
+const ITEM_MAP = {
+  "鸡饭": "chicken rice", "chicken rice": "chicken rice",
+  "nasi lemak": "nasi lemak", "nasi goreng": "nasi goreng",
+  "炒饭": "fried rice", "fried rice": "fried rice",
+  "面": "noodle", "mee": "noodle", "noodle": "noodle",
+  "粉": "noodle",
+  "kopi": "coffee", "咖啡": "coffee", "coffee": "coffee",
+  "奶茶": "milk tea", "boba": "boba tea",
+  "茶": "tea", "tea": "tea",
+  "burger": "burger", "汉堡": "burger",
+  "pizza": "pizza", "披萨": "pizza",
+  "sushi": "sushi", "寿司": "sushi",
+  "便当": "bento", "bento": "bento",
+  "面包": "bread", "bread": "bread",
+  "蛋糕": "cake", "cake": "cake",
+  "打油": "fuel", "加油": "fuel", "petrol": "fuel", "fuel": "fuel",
+  "parking": "parking", "停车": "parking",
+  "lotus": "lotus", "莲花": "lotus",
+};
+
+function detectItemName(text) {
+  const lower = text.toLowerCase();
+  let best = null;
+  let bestLen = 0;
+  for (const [key, val] of Object.entries(ITEM_MAP)) {
+    if (lower.includes(key) && key.length > bestLen) {
+      best = val;
+      bestLen = key.length;
+    }
+  }
+  return best;
+}
+
+// --- Date extraction ---
+function extractDate(text) {
+  const lower = text.toLowerCase();
+  const now = new Date();
+
+  if (/今天|today|今日/.test(lower)) return todayISO();
+  if (/昨天|yesterday|昨日/.test(lower)) return dateObjToISO(addDays(now, -1));
+  if (/前天|day before/.test(lower)) return dateObjToISO(addDays(now, -2));
+
+  // "2月26" or "2/26" or "02-26"
+  const dateMatch = lower.match(/(\d{1,2})[月/\-](\d{1,2})/);
+  if (dateMatch) {
+    const m = parseInt(dateMatch[1]);
+    const d = parseInt(dateMatch[2]);
+    if (m >= 1 && m <= 12 && d >= 1 && d <= 31) {
+      return `${now.getFullYear()}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    }
+  }
+
+  return null; // Will default to today
+}
+
+// --- Month extraction ---
+function extractMonth(text) {
+  const lower = text.toLowerCase();
+
+  if (/这个月|this month|本月|当月/.test(lower)) return "current";
+  if (/上个月|last month|上月/.test(lower)) return "last";
+
+  const mMatch = lower.match(/(\d{1,2})\s*月/);
+  if (mMatch) return parseInt(mMatch[1]);
+
+  const engMatch = lower.match(/(?:month|月)\s*(\d{1,2})/);
+  if (engMatch) return parseInt(engMatch[1]);
+
+  return null;
+}
+
+// --- Intent detection ---
+function detectIntent(text) {
+  const lower = text.toLowerCase();
+
+  // Query intents (check first, since they overlap with keywords)
+  const isQuery = /多少|how much|spent|花了|用了|花费|总共|total|查|查询|几|what|多少钱|summary|report/.test(lower);
+
+  if (isQuery) {
+    const month = extractMonth(lower);
+    const category = detectCategory(lower);
+    const itemName = detectItemName(lower);
+
+    if (itemName && !category) {
+      return { intent: "query_item", item_name: itemName, month: month || "current" };
+    }
+    if (category) {
+      return { intent: "query_category", category, month: month || "current" };
+    }
+    return { intent: "query_total", month: month || "current" };
+  }
+
+  // Income intents
+  const isIncome = /收入|income|salary|薪水|工资|bonus|奖金|earned|赚|入账|revenue/.test(lower);
+  if (isIncome) return { intent: "add_income" };
+
+  // Default: add expense
+  return { intent: "add_expense" };
+}
+
+// --- Main NLP parser ---
+function parseNaturalInput(text) {
+  const raw = String(text || "").trim();
+  if (!raw) return null;
+
+  const base = detectIntent(raw);
+  const amount = extractAmount(raw);
+  const category = base.category || detectCategory(raw);
+  const itemName = base.item_name || detectItemName(raw);
+  const date = extractDate(raw);
+  const month = base.month || extractMonth(raw);
+
+  const result = { ...base };
+
+  if (amount != null && amount > 0) result.amount = Math.round(amount * 100) / 100;
+  if (category) result.category = category;
+  if (itemName) result.item_name = itemName;
+  if (date) result.date = date;
+  if (month) result.month = month;
+  result.currency = "MYR";
+
+  return result;
+}
+
+// --- Execute parsed intent ---
+function resolveMonth(monthVal) {
+  const now = new Date();
+  if (monthVal === "current") {
+    return {
+      month: now.getMonth() + 1,
+      year: now.getFullYear(),
+      label: currentMonthValue(),
+    };
+  }
+  if (monthVal === "last") {
+    const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    return {
+      month: prev.getMonth() + 1,
+      year: prev.getFullYear(),
+      label: `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, "0")}`,
+    };
+  }
+  if (typeof monthVal === "number" && monthVal >= 1 && monthVal <= 12) {
+    return {
+      month: monthVal,
+      year: now.getFullYear(),
+      label: `${now.getFullYear()}-${String(monthVal).padStart(2, "0")}`,
+    };
+  }
+  return { month: now.getMonth() + 1, year: now.getFullYear(), label: currentMonthValue() };
+}
+
+function queryTransactions(parsed) {
+  const r = resolveMonth(parsed.month);
+  const start = new Date(r.year, r.month - 1, 1);
+  const end = new Date(r.year, r.month, 1);
+
+  let filtered = transactions.filter((tx) => {
+    const d = new Date(tx.dateISO);
+    return d >= start && d < end;
+  });
+
+  if (parsed.intent === "query_category" && parsed.category) {
+    const catLower = parsed.category.toLowerCase();
+    // Find matching categories by name or our mapped name
+    const matchingCatIds = new Set();
+    for (const c of categories) {
+      const cName = c.name.toLowerCase();
+      if (cName.includes(catLower) || catLower.includes(cName)) {
+        matchingCatIds.add(c.id);
+      }
+    }
+    // Also match via CATEGORY_MAP
+    const mapGroup = CATEGORY_MAP.find((g) => g.cat === catLower);
+    if (mapGroup) {
+      for (const c of categories) {
+        const cName = c.name.toLowerCase();
+        if (mapGroup.keys.some((k) => cName.includes(k) || k.includes(cName))) {
+          matchingCatIds.add(c.id);
+        }
+      }
+    }
+    if (matchingCatIds.size > 0) {
+      filtered = filtered.filter((tx) => matchingCatIds.has(tx.categoryId));
+    } else {
+      // Try note matching as fallback
+      filtered = filtered.filter((tx) =>
+        (tx.note || "").toLowerCase().includes(catLower) ||
+        (tx.categoryName || "").toLowerCase().includes(catLower)
+      );
+    }
+  }
+
+  if (parsed.intent === "query_item" && parsed.item_name) {
+    const itemLower = parsed.item_name.toLowerCase();
+    // Also check original Chinese text
+    const originalKeys = Object.entries(ITEM_MAP)
+      .filter(([, v]) => v === parsed.item_name)
+      .map(([k]) => k.toLowerCase());
+
+    filtered = filtered.filter((tx) => {
+      const note = (tx.note || "").toLowerCase();
+      const cat = (tx.categoryName || "").toLowerCase();
+      return note.includes(itemLower) || cat.includes(itemLower) ||
+        originalKeys.some((k) => note.includes(k));
+    });
+  }
+
+  let totalExpense = 0;
+  let totalRevenue = 0;
+  for (const tx of filtered) {
+    if (tx.type === "expense") totalExpense += tx.amount;
+    else totalRevenue += tx.amount;
+  }
+
+  return {
+    count: filtered.length,
+    totalExpense: Math.round(totalExpense * 100) / 100,
+    totalRevenue: Math.round(totalRevenue * 100) / 100,
+    net: Math.round((totalRevenue - totalExpense) * 100) / 100,
+    monthLabel: r.label,
+  };
+}
+
+function findCategoryByNlp(catName) {
+  if (!catName) return null;
+  const lower = catName.toLowerCase();
+
+  // Direct name match
+  for (const c of categories) {
+    if (c.name.toLowerCase() === lower) return c;
+  }
+
+  // Partial match
+  for (const c of categories) {
+    const cName = c.name.toLowerCase();
+    if (cName.includes(lower) || lower.includes(cName)) return c;
+  }
+
+  // Map-based match
+  const mapGroup = CATEGORY_MAP.find((g) => g.cat === lower);
+  if (mapGroup) {
+    for (const c of categories) {
+      const cName = c.name.toLowerCase();
+      if (mapGroup.keys.some((k) => cName.includes(k) || k.includes(cName))) return c;
+    }
+  }
+
+  return null;
+}
+
+async function executeAssistantIntent(parsed) {
+  if (!uid) return { ok: false, message: "Please sign in first." };
+  if (!parsed) return { ok: false, message: "I didn't understand that. Try again?" };
+
+  const intent = parsed.intent;
+
+  // --- Queries ---
+  if (intent === "query_total" || intent === "query_category" || intent === "query_item" || intent === "query_month" || intent === "query_custom") {
+    const result = queryTransactions(parsed);
+    let label = "";
+    if (intent === "query_category") {
+      label = `${parsed.category || "all"} spending`;
+    } else if (intent === "query_item") {
+      label = `"${parsed.item_name}" spending`;
+    } else {
+      label = "total";
+    }
+    return {
+      ok: true,
+      type: "query",
+      message: `📊 ${label} for ${result.monthLabel}`,
+      expense: result.totalExpense,
+      revenue: result.totalRevenue,
+      net: result.net,
+      count: result.count,
+    };
+  }
+
+  // --- Add expense / income ---
+  if (intent === "add_expense" || intent === "add_income") {
+    if (!parsed.amount || parsed.amount <= 0) {
+      return { ok: false, message: "I couldn't detect the amount. Please include a number." };
+    }
+
+    const type = intent === "add_income" ? "revenue" : "expense";
+    const cat = findCategoryByNlp(parsed.category);
+    if (!cat && categories.length === 0) {
+      return { ok: false, message: "No categories yet. Please add a category first." };
+    }
+
+    const categoryId = cat ? cat.id : categories[0].id;
+    const categoryName = cat ? cat.name : categories[0].name;
+    const dateISO = parsed.date || todayISO();
+    const note = parsed.item_name || parsed.category || "";
+
+    const { transactions: txCol } = userCollections(uid);
+    await addDoc(txCol, {
+      categoryId,
+      categoryName,
+      type,
+      amount: parsed.amount,
+      note,
+      noteLower: note.toLowerCase(),
+      dateISO,
+      createdAt: serverTimestamp(),
+    });
+
+    lastUsedCategoryId = categoryId;
+
+    const typeLabel = type === "expense" ? "Expense" : "Income";
+    return {
+      ok: true,
+      type: "add",
+      message: `✅ ${typeLabel} recorded!`,
+      detail: `${categoryName} · ${money(parsed.amount)} · ${dateISO}${note ? " · " + note : ""}`,
+    };
+  }
+
+  return { ok: false, message: "I'm not sure what to do. Try saying something like '今天吃鸡饭18块' or 'spent 50 on fuel'." };
+}
+
+// --- Chat UI helpers ---
+function addChatBubble(type, html) {
+  if (!els.assistantChat) return;
+  const div = document.createElement("div");
+  div.className = `chat-bubble ${type === "user" ? "chat-user" : "chat-bot"}`;
+  div.innerHTML = html;
+  els.assistantChat.appendChild(div);
+  els.assistantChat.scrollTop = els.assistantChat.scrollHeight;
+}
+
+function addThinking() {
+  if (!els.assistantChat) return null;
+  const div = document.createElement("div");
+  div.className = "chat-thinking";
+  div.textContent = "Thinking...";
+  els.assistantChat.appendChild(div);
+  els.assistantChat.scrollTop = els.assistantChat.scrollHeight;
+  return div;
+}
+
+function formatQueryResult(result) {
+  let html = `<span>${escapeHtml(result.message)}</span>`;
+  html += `<span class="chat-amount">${money(result.expense)} expense</span>`;
+  if (result.revenue > 0) {
+    html += `<span class="chat-detail">Revenue: ${money(result.revenue)} · Net: ${money(result.net)}</span>`;
+  }
+  html += `<span class="chat-detail">${result.count} record(s) found</span>`;
+  return html;
+}
+
+function formatAddResult(result) {
+  let html = `<span class="chat-success">${escapeHtml(result.message)}</span>`;
+  html += `<span class="chat-detail">${escapeHtml(result.detail)}</span>`;
+  return html;
+}
+
+async function handleAssistantMessage(text) {
+  const raw = text.trim();
+  if (!raw) return;
+
+  addChatBubble("user", escapeHtml(raw));
+  const thinking = addThinking();
+
+  try {
+    const parsed = parseNaturalInput(raw);
+    const result = await executeAssistantIntent(parsed);
+
+    if (thinking) thinking.remove();
+
+    if (!result.ok) {
+      addChatBubble("bot", `<span>${escapeHtml(result.message)}</span>`);
+      return;
+    }
+
+    if (result.type === "query") {
+      addChatBubble("bot", formatQueryResult(result));
+    } else if (result.type === "add") {
+      addChatBubble("bot", formatAddResult(result));
+    }
+  } catch (err) {
+    if (thinking) thinking.remove();
+    addChatBubble("bot", `<span>❌ Error: ${escapeHtml(friendlyDbError(err))}</span>`);
+  }
+}
+
+// --- Web Speech API ---
+let speechRecognition = null;
+let isListening = false;
+
+function initSpeechRecognition() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) return null;
+
+  const rec = new SR();
+  rec.continuous = false;
+  rec.interimResults = false;
+  // Support Chinese + English mixed input
+  rec.lang = "zh-CN";
+
+  rec.onresult = (event) => {
+    const transcript = event.results[0][0].transcript;
+    if (els.assistantInput) els.assistantInput.value = transcript;
+    handleAssistantMessage(transcript);
+    stopListening();
+  };
+
+  rec.onerror = (event) => {
+    stopListening();
+    if (event.error === "no-speech") {
+      addChatBubble("bot", "<span>🎤 No speech detected. Please try again.</span>");
+    } else if (event.error === "not-allowed") {
+      addChatBubble("bot", "<span>🎤 Microphone access denied. Please allow mic permission.</span>");
+    }
+  };
+
+  rec.onend = () => {
+    stopListening();
+  };
+
+  return rec;
+}
+
+function startListening() {
+  if (!speechRecognition) {
+    speechRecognition = initSpeechRecognition();
+  }
+  if (!speechRecognition) {
+    addChatBubble("bot", "<span>🎤 Speech recognition not supported in this browser. Use Chrome for best results.</span>");
+    return;
+  }
+  try {
+    speechRecognition.start();
+    isListening = true;
+    if (els.assistantMicBtn) els.assistantMicBtn.classList.add("listening");
+  } catch {
+    // Already started
+  }
+}
+
+function stopListening() {
+  isListening = false;
+  if (els.assistantMicBtn) els.assistantMicBtn.classList.remove("listening");
+  try {
+    if (speechRecognition) speechRecognition.stop();
+  } catch {
+    // ignore
+  }
+}
+
+function toggleAssistantPanel(show) {
+  if (!els.assistantPanel || !els.assistantFab) return;
+  const visible = show !== undefined ? show : els.assistantPanel.hidden;
+  els.assistantPanel.hidden = !visible;
+  els.assistantFab.hidden = visible;
+  if (visible && els.assistantInput) {
+    els.assistantInput.focus();
+  }
+  if (!visible) {
+    stopListening();
+  }
+}
+
+function wireAssistantEvents() {
+  if (els.assistantFab) {
+    els.assistantFab.addEventListener("click", () => toggleAssistantPanel(true));
+  }
+  if (els.closeAssistant) {
+    els.closeAssistant.addEventListener("click", () => toggleAssistantPanel(false));
+  }
+  if (els.assistantSendBtn) {
+    els.assistantSendBtn.addEventListener("click", () => {
+      const val = els.assistantInput?.value || "";
+      if (val.trim()) {
+        handleAssistantMessage(val);
+        els.assistantInput.value = "";
+      }
+    });
+  }
+  if (els.assistantInput) {
+    els.assistantInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        const val = els.assistantInput.value || "";
+        if (val.trim()) {
+          handleAssistantMessage(val);
+          els.assistantInput.value = "";
+        }
+      }
+    });
+  }
+  if (els.assistantMicBtn) {
+    els.assistantMicBtn.addEventListener("click", () => {
+      if (isListening) {
+        stopListening();
+      } else {
+        startListening();
+      }
+    });
+  }
+  // Escape closes the panel
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && els.assistantPanel && !els.assistantPanel.hidden) {
+      toggleAssistantPanel(false);
+    }
+  });
 }
 
 function checkDuplicate() {
@@ -1805,6 +2439,7 @@ async function main() {
   renderBudgetScopeLabel();
 
   wireEvents();
+  wireAssistantEvents();
 
   const init = await initFirebase();
   if (!init.ok) {

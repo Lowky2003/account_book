@@ -314,6 +314,25 @@
       </div>
     </main>
 
+    <!-- Voice / Text Assistant -->
+    <button id="assistantFab" class="assistant-fab" type="button" title="Voice assistant" hidden>
+      <span class="fab-icon">🎙️</span>
+    </button>
+
+    <div id="assistantPanel" class="assistant-panel" hidden>
+      <div class="assistant-header">
+        <div class="assistant-title">💬 Smart Assistant</div>
+        <div class="muted small">Voice or type in Chinese / English / mixed</div>
+        <button id="closeAssistant" class="btn btn-secondary btn-small" type="button">✕</button>
+      </div>
+      <div id="assistantChat" class="assistant-chat"></div>
+      <div class="assistant-input-row">
+        <input id="assistantInput" type="text" placeholder="e.g. 今天吃鸡饭18块 / spent 50 on fuel" autocomplete="off" />
+        <button id="assistantMicBtn" class="btn assistant-mic" type="button" title="Hold to speak">🎤</button>
+        <button id="assistantSendBtn" class="btn" type="button" title="Send">→</button>
+      </div>
+    </div>
+
     <script type="module" src="./app.js"></script>
   </body>
 </html>
