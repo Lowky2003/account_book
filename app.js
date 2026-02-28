@@ -74,6 +74,18 @@ const els = {
 
   searchInput: document.getElementById("searchInput"),
   clearSearchBtn: document.getElementById("clearSearchBtn"),
+  exportCsvBtn: document.getElementById("exportCsvBtn"),
+  todayBtn: document.getElementById("todayBtn"),
+  noteSuggestions: document.getElementById("noteSuggestions"),
+  duplicateWarning: document.getElementById("duplicateWarning"),
+  quickRepeatSection: document.getElementById("quickRepeatSection"),
+  quickRepeatList: document.getElementById("quickRepeatList"),
+  expenseTrend: document.getElementById("expenseTrend"),
+  revenueTrend: document.getElementById("revenueTrend"),
+  projectionRow: document.getElementById("projectionRow"),
+  dailyAvgExpense: document.getElementById("dailyAvgExpense"),
+  projectedExpense: document.getElementById("projectedExpense"),
+  daysLeft: document.getElementById("daysLeft"),
 
   statsRange: document.getElementById("statsRange"),
   statsDateField: document.getElementById("statsDateField"),
@@ -97,6 +109,7 @@ let ChartJsRegistered = false;
 let statsChartInstance = null;
 let editingCategoryId = null;
 let editingTransactionId = null;
+let lastUsedCategoryId = null;
 
 async function ensureChartJs() {
   if (ChartJs) return ChartJs;
@@ -169,7 +182,8 @@ function applyTheme(theme) {
   const isDark = normalized === "dark";
   if (els.themeToggleBtn) {
     els.themeToggleBtn.setAttribute("aria-pressed", String(isDark));
-    els.themeToggleBtn.textContent = `Dark mode: ${isDark ? "On" : "Off"}`;
+    els.themeToggleBtn.textContent = isDark ? "☀️" : "🌙";
+    els.themeToggleBtn.title = isDark ? "Switch to light mode" : "Switch to dark mode";
   }
 
   // Update chart colors to match the theme.
@@ -267,6 +281,14 @@ function addDays(date, days) {
   const d = new Date(date);
   d.setDate(d.getDate() + days);
   return d;
+}
+
+function debounce(fn, ms) {
+  let timer;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), ms);
+  };
 }
 
 function setStatsRangeLabel(range, start, endExclusive) {
@@ -609,7 +631,7 @@ function showUndoToast({ message, onUndo }) {
     onUndo: undoHandler,
     timer: setTimeout(() => {
       clearUndoToast();
-    }, 3000),
+    }, 5000),
   };
 
   // Replace handler each time toast is shown.
@@ -766,6 +788,8 @@ function renderCategorySelect() {
 
   if (prev && categories.some((c) => c.id === prev)) {
     els.txCategory.value = prev;
+  } else if (lastUsedCategoryId && categories.some((c) => c.id === lastUsedCategoryId)) {
+    els.txCategory.value = lastUsedCategoryId;
   }
 }
 
@@ -803,18 +827,31 @@ function renderCategoriesTable() {
           ? `Yearly (${yearLabel})`
           : "Lifetime";
 
+    const budgetUsedPct = (c.budget || 0) > 0 ? (spent / (c.budget || 1)) * 100 : 0;
+    let budgetBadge = '';
+    let budgetRowClass = 'budget-ok';
+    if ((c.budget || 0) > 0 && spent > 0) {
+      if (budgetUsedPct >= 100) {
+        budgetBadge = '<span class="budget-badge over">OVER</span>';
+        budgetRowClass = 'budget-over';
+      } else if (budgetUsedPct >= 80) {
+        budgetBadge = `<span class="budget-badge warn">${Math.round(budgetUsedPct)}%</span>`;
+        budgetRowClass = 'budget-warn';
+      }
+    }
+
     const tr = document.createElement("tr");
     tr.dataset.categoryId = c.id;
-    tr.classList.add("clickable-row");
+    tr.classList.add("clickable-row", budgetRowClass);
     if (c.id === activeCategoryId) tr.classList.add("selected");
     tr.innerHTML = `
-      <td>${escapeHtml(c.name)}</td>
-      <td>${escapeHtml(periodLabel)}</td>
-      <td class="right">${money(c.budget || 0)}</td>
-      <td class="right">${money(spent)}</td>
-      <td class="right">${money(income)}</td>
-      <td class="right">${money(effectiveBudgetBalance)}</td>
-      <td class="right">
+      <td data-label="Name">${escapeHtml(c.name)}${budgetBadge}</td>
+      <td data-label="Period">${escapeHtml(periodLabel)}</td>
+      <td class="right" data-label="Budget">${money(c.budget || 0)}</td>
+      <td class="right" data-label="Spent">${money(spent)}</td>
+      <td class="right" data-label="Income">${money(income)}</td>
+      <td class="right ${effectiveBudgetBalance > 0 ? 'val-positive' : effectiveBudgetBalance < 0 ? 'val-negative' : ''}" data-label="Balance">${money(effectiveBudgetBalance)}</td>
+      <td>
         <div class="row-actions">
           <button class="btn btn-small" type="button" data-action="edit-category" data-id="${c.id}">Edit</button>
           <button class="btn btn-danger btn-small" type="button" data-action="delete-category" data-id="${c.id}">Delete</button>
@@ -830,7 +867,10 @@ function renderTransactionsTable() {
 
   const term = searchTerm.trim().toLowerCase();
   let filtered = term
-    ? transactions.filter((t) => (t.note || "").toLowerCase().includes(term))
+    ? transactions.filter((t) =>
+        (t.note || "").toLowerCase().includes(term) ||
+        (t.categoryName || "").toLowerCase().includes(term)
+      )
     : transactions;
 
   if (activeCategoryId) {
@@ -883,12 +923,12 @@ function renderTransactionsTable() {
     const tr = document.createElement("tr");
     const typeLabel = tx.type === "expense" ? "Expense" : "Revenue";
     tr.innerHTML = `
-      <td>${escapeHtml(tx.dateISO)}</td>
-      <td>${escapeHtml(tx.categoryName || "")}</td>
-      <td>${escapeHtml(typeLabel)}</td>
-      <td class="right">${money(tx.amount)}</td>
-      <td>${escapeHtml(tx.note || "")}</td>
-      <td class="right">
+      <td data-label="Date">${escapeHtml(tx.dateISO)}</td>
+      <td data-label="Category">${escapeHtml(tx.categoryName || "")}</td>
+      <td data-label="Type">${escapeHtml(typeLabel)}</td>
+      <td class="right" data-label="Amount">${money(tx.amount)}</td>
+      <td data-label="Note">${escapeHtml(tx.note || "")}</td>
+      <td>
         <div class="row-actions">
           <button class="btn btn-small" type="button" data-action="edit-tx" data-id="${tx.id}">Edit</button>
           <button class="btn btn-danger btn-small" type="button" data-action="delete-tx" data-id="${tx.id}">Delete</button>
@@ -933,8 +973,15 @@ function renderStats() {
   }
 
   els.totalExpense.textContent = money(totalExpense);
+  els.totalExpense.className = 'stat-value val-negative';
   els.totalRevenue.textContent = money(totalRevenue);
-  els.netTotal.textContent = money(totalRevenue - totalExpense);
+  els.totalRevenue.className = 'stat-value val-positive';
+  const net = totalRevenue - totalExpense;
+  els.netTotal.textContent = money(net);
+  els.netTotal.className = `stat-value ${net > 0 ? 'val-positive' : net < 0 ? 'val-negative' : ''}`;
+
+  renderTrend(range, start, endExclusive);
+  renderProjection(range, start, endExclusive);
 
   els.statsTbody.innerHTML = "";
 
@@ -954,20 +1001,28 @@ function renderStats() {
   for (const r of rows) {
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td>${escapeHtml(r.categoryName)}</td>
-      <td class="right">${money(r.expense)}</td>
-      <td class="right">${money(r.revenue)}</td>
-      <td class="right">${money(r.revenue - r.expense)}</td>
+      <td data-label="Category">${escapeHtml(r.categoryName)}</td>
+      <td class="right" data-label="Expense">${money(r.expense)}</td>
+      <td class="right" data-label="Revenue">${money(r.revenue)}</td>
+      <td class="right ${(r.revenue - r.expense) > 0 ? 'val-positive' : (r.revenue - r.expense) < 0 ? 'val-negative' : ''}" data-label="Net">${money(r.revenue - r.expense)}</td>
     `;
     els.statsTbody.appendChild(tr);
   }
 }
 
+let renderAllPending = false;
 function renderAll() {
-  renderCategorySelect();
-  renderCategoriesTable();
-  renderTransactionsTable();
-  renderStats();
+  if (renderAllPending) return;
+  renderAllPending = true;
+  queueMicrotask(() => {
+    renderAllPending = false;
+    renderCategorySelect();
+    renderCategoriesTable();
+    renderTransactionsTable();
+    renderStats();
+    updateNoteSuggestions();
+    renderQuickRepeat();
+  });
 }
 
 function escapeHtml(s) {
@@ -1183,8 +1238,10 @@ async function addTransaction() {
     createdAt: serverTimestamp(),
   });
 
+  lastUsedCategoryId = categoryId;
   els.txAmount.value = "";
   els.txNote.value = "";
+  if (els.duplicateWarning) els.duplicateWarning.hidden = true;
   els.txAmount.focus();
 }
 
@@ -1244,6 +1301,162 @@ function cancelTxEdit() {
 async function deleteTransactionById(txId) {
   const { transactions: txCol } = userCollections(uid);
   await deleteDoc(doc(txCol, txId));
+}
+
+function updateNoteSuggestions() {
+  if (!els.noteSuggestions) return;
+  const seen = new Set();
+  const opts = [];
+  // Most recent transactions first, take unique notes (max 50)
+  for (const tx of transactions) {
+    const n = (tx.note || "").trim();
+    if (!n || seen.has(n.toLowerCase())) continue;
+    seen.add(n.toLowerCase());
+    opts.push(n);
+    if (opts.length >= 50) break;
+  }
+  els.noteSuggestions.innerHTML = "";
+  for (const text of opts) {
+    const opt = document.createElement("option");
+    opt.value = text;
+    els.noteSuggestions.appendChild(opt);
+  }
+}
+
+function renderQuickRepeat() {
+  if (!els.quickRepeatSection || !els.quickRepeatList) return;
+  // Show up to 3 most recent unique transactions (by cat+type+amount+note)
+  const seen = new Set();
+  const items = [];
+  const sorted = transactions.slice().sort((a, b) => {
+    const da = a.dateISO || "";
+    const db = b.dateISO || "";
+    return db.localeCompare(da);
+  });
+  for (const tx of sorted) {
+    const key = `${tx.categoryId}|${tx.type}|${tx.amount}|${(tx.note || "").toLowerCase()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    items.push(tx);
+    if (items.length >= 3) break;
+  }
+  if (items.length === 0) {
+    els.quickRepeatSection.hidden = true;
+    return;
+  }
+  els.quickRepeatSection.hidden = false;
+  els.quickRepeatList.innerHTML = "";
+  for (const tx of items) {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "quick-chip";
+    const typeIcon = tx.type === "expense" ? "−" : "+";
+    chip.innerHTML = `<span class="chip-cat">${escapeHtml(tx.categoryName || "")}</span> <span class="chip-amount">${typeIcon}${money(tx.amount)}</span> ${tx.note ? escapeHtml(tx.note) : ''}`;
+    chip.addEventListener("click", () => {
+      els.txCategory.value = tx.categoryId || "";
+      els.txType.value = tx.type || "expense";
+      els.txAmount.value = String(tx.amount);
+      els.txNote.value = tx.note || "";
+      els.txDate.value = todayISO();
+      els.txAmount.focus();
+    });
+    els.quickRepeatList.appendChild(chip);
+  }
+}
+
+function computeTrend(range, start, endExclusive) {
+  // Calculate the previous period of same length
+  const durationMs = endExclusive.getTime() - start.getTime();
+  const prevStart = new Date(start.getTime() - durationMs);
+  const prevEnd = start;
+
+  let curExp = 0, curRev = 0, prevExp = 0, prevRev = 0;
+  for (const tx of transactions) {
+    const d = new Date(tx.dateISO);
+    if (d >= start && d < endExclusive) {
+      if (tx.type === "expense") curExp += tx.amount;
+      else curRev += tx.amount;
+    } else if (d >= prevStart && d < prevEnd) {
+      if (tx.type === "expense") prevExp += tx.amount;
+      else prevRev += tx.amount;
+    }
+  }
+  return { curExp, curRev, prevExp, prevRev };
+}
+
+function renderTrend(range, start, endExclusive) {
+  if (!els.expenseTrend || !els.revenueTrend) return;
+  const { curExp, curRev, prevExp, prevRev } = computeTrend(range, start, endExclusive);
+
+  const formatTrend = (cur, prev) => {
+    if (prev === 0 && cur === 0) return { text: "", cls: "" };
+    if (prev === 0) return { text: "↑ new", cls: "trend-up" };
+    const pct = ((cur - prev) / prev) * 100;
+    const arrow = pct > 0 ? "↑" : pct < 0 ? "↓" : "→";
+    return {
+      text: `${arrow} ${Math.abs(pct).toFixed(0)}% vs prev`,
+      cls: pct > 0 ? "trend-up" : pct < 0 ? "trend-down" : "",
+    };
+  };
+
+  const expT = formatTrend(curExp, prevExp);
+  els.expenseTrend.textContent = expT.text;
+  els.expenseTrend.className = `trend-label muted small ${expT.cls}`;
+
+  // For revenue, up is good (flip colors)
+  const revT = formatTrend(curRev, prevRev);
+  els.revenueTrend.textContent = revT.text;
+  els.revenueTrend.className = `trend-label muted small ${revT.cls === "trend-up" ? "trend-down" : revT.cls === "trend-down" ? "trend-up" : ""}`;
+}
+
+function renderProjection(range, start, endExclusive) {
+  if (!els.projectionRow) return;
+  // Only show projection for monthly range and current month
+  if (range !== "month") {
+    els.projectionRow.hidden = true;
+    return;
+  }
+  const now = new Date();
+  const isCurrentMonth = start.getFullYear() === now.getFullYear() && start.getMonth() === now.getMonth();
+  if (!isCurrentMonth) {
+    els.projectionRow.hidden = true;
+    return;
+  }
+  els.projectionRow.hidden = false;
+
+  const dayOfMonth = now.getDate();
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const remaining = daysInMonth - dayOfMonth;
+
+  let totalExp = 0;
+  for (const tx of transactions) {
+    const d = new Date(tx.dateISO);
+    if (d >= start && d < endExclusive && tx.type === "expense") {
+      totalExp += tx.amount;
+    }
+  }
+
+  const dailyAvg = dayOfMonth > 0 ? totalExp / dayOfMonth : 0;
+  const projected = totalExp + dailyAvg * remaining;
+
+  if (els.dailyAvgExpense) els.dailyAvgExpense.textContent = money(dailyAvg);
+  if (els.projectedExpense) els.projectedExpense.textContent = `~${money(projected)}`;
+  if (els.daysLeft) els.daysLeft.textContent = `${remaining} days`;
+}
+
+function checkDuplicate() {
+  if (!els.duplicateWarning) return;
+  const categoryId = els.txCategory.value;
+  const amount = parsePositiveAmount(els.txAmount.value);
+  const dateISO = els.txDate.value;
+  if (!categoryId || !amount || !dateISO) {
+    els.duplicateWarning.hidden = true;
+    return;
+  }
+  const isDup = transactions.some(
+    (t) => t.categoryId === categoryId && t.amount === amount && t.dateISO === dateISO && t.id !== editingTransactionId
+  );
+  els.duplicateWarning.hidden = !isDup;
 }
 
 function wireEvents() {
@@ -1454,11 +1667,12 @@ function wireEvents() {
     }
   });
 
-  els.searchInput.addEventListener("input", () => {
+  const debouncedSearch = debounce(() => {
     searchTerm = els.searchInput.value;
     txPage = 1;
     renderTransactionsTable();
-  });
+  }, 200);
+  els.searchInput.addEventListener("input", debouncedSearch);
 
   els.clearSearchBtn.addEventListener("click", () => {
     els.searchInput.value = "";
@@ -1519,6 +1733,62 @@ function wireEvents() {
   els.budgetMonth.addEventListener("change", () => {
     renderBudgetScopeLabel();
     renderCategoriesTable();
+  });
+
+  // Duplicate detection on form input changes
+  const dupFields = [els.txCategory, els.txType, els.txAmount, els.txDate];
+  for (const field of dupFields) {
+    if (field) field.addEventListener("change", checkDuplicate);
+  }
+  if (els.txAmount) els.txAmount.addEventListener("input", debounce(checkDuplicate, 300));
+
+  // Quick-fill Today button
+  if (els.todayBtn) {
+    els.todayBtn.addEventListener("click", () => {
+      els.txDate.value = todayISO();
+    });
+  }
+
+  // Export CSV
+  if (els.exportCsvBtn) {
+    els.exportCsvBtn.addEventListener("click", () => {
+      const term = searchTerm.trim().toLowerCase();
+      let data = term
+        ? transactions.filter((t) =>
+            (t.note || "").toLowerCase().includes(term) ||
+            (t.categoryName || "").toLowerCase().includes(term)
+          )
+        : transactions;
+      if (activeCategoryId) {
+        data = data.filter((t) => t.categoryId === activeCategoryId);
+      }
+      if (data.length === 0) {
+        setAppError("No records to export.");
+        return;
+      }
+      const header = "Date,Category,Type,Amount,Note";
+      const csvRows = data.map((t) => {
+        const note = String(t.note || "").replace(/"/g, '""');
+        const cat = String(t.categoryName || "").replace(/"/g, '""');
+        return `${t.dateISO},"${cat}",${t.type},${t.amount},"${note}"`;
+      });
+      const csv = [header, ...csvRows].join("\n");
+      const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `account-book-${todayISO()}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+  }
+
+  // Escape key cancels editing
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      if (editingCategoryId) { cancelCategoryEdit(); }
+      if (editingTransactionId) { cancelTxEdit(); }
+    }
   });
 }
 
