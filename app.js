@@ -1669,7 +1669,47 @@ function detectIntent(text) {
   return { intent: "add_expense" };
 }
 
-// --- Main NLP parser ---
+// --- Parse multiple transactions from one sentence ---
+function parseMultipleTransactions(text) {
+  const raw = String(text || "").trim();
+  if (!raw) return null;
+
+  const base = detectIntent(raw);
+  
+  // Query intents don't batch
+  if (base.intent && base.intent.startsWith("query_")) {
+    return [parseNaturalInput(raw)];
+  }
+
+  // For add_expense/add_income, split on common delimiters and try to extract multiple items
+  const delimiters = /\s*(?:,|，|and|且|还有|以及|、|;|；)\s*/;
+  const segments = raw.split(delimiters).filter(s => s.trim());
+
+  if (segments.length === 1) {
+    // Single transaction
+    return [parseNaturalInput(raw)];
+  }
+
+  // Try to parse multiple transactions
+  const results = [];
+  for (const segment of segments) {
+    const parsed = parseNaturalInput(segment);
+    // Only add if we got an amount (query intents or amounts without value are skipped)
+    if (parsed && parsed.amount && parsed.amount > 0) {
+      results.push(parsed);
+    }
+  }
+
+  // If we successfully parsed multiple items with amounts, return them
+  if (results.length > 1) {
+    return results;
+  }
+
+  // Otherwise fall back to single parse of whole text
+  return [parseNaturalInput(raw)];
+}
+
+// --- Main NLP parser (single transaction) ---
 function parseNaturalInput(text) {
   const raw = String(text || "").trim();
   if (!raw) return null;
@@ -1927,6 +1967,22 @@ function formatAddResult(result) {
   return html;
 }
 
+function formatBatchAddResult(results, errors) {
+  let html = `<span class="chat-success">✅ ${results.length} transaction(s) recorded!</span>`;
+  
+  // Show each transaction
+  for (const r of results) {
+    html += `<span class="chat-detail">• ${escapeHtml(r.detail)}</span>`;
+  }
+  
+  // Show any errors
+  if (errors && errors.length > 0) {
+    html += `<span class="chat-detail" style="color:#f59e0b;">⚠️ ${errors.length} failed: ${escapeHtml(errors[0])}</span>`;
+  }
+  
+  return html;
+}
+
 async function handleAssistantMessage(text) {
   const raw = text.trim();
   if (!raw) return;
@@ -1935,9 +1991,60 @@ async function handleAssistantMessage(text) {
   const thinking = addThinking();
 
   try {
-    const parsed = parseNaturalInput(raw);
-    const result = await executeAssistantIntent(parsed);
+    const parsedList = parseMultipleTransactions(raw);
+    
+    // Handle single transaction case (queries)
+    if (parsedList.length === 1 && parsedList[0].intent.startsWith("query_")) {
+      const result = await executeAssistantIntent(parsedList[0]);
+      if (thinking) thinking.remove();
 
+      if (!result.ok) {
+        addChatBubble("bot", `<span>${escapeHtml(result.message)}</span>`);
+        return;
+      }
+      if (result.type === "query") {
+        addChatBubble("bot", formatQueryResult(result));
+      }
+      return;
+    }
+
+    // Handle batch add (add_expense / add_income)
+    if (parsedList.length > 0 && (parsedList[0].intent === "add_expense" || parsedList[0].intent === "add_income")) {
+      const results = [];
+      const errors = [];
+
+      for (const parsed of parsedList) {
+        try {
+          const result = await executeAssistantIntent(parsed);
+          if (result.ok) {
+            results.push(result);
+          } else {
+            errors.push(result.message);
+          }
+        } catch (err) {
+          errors.push(friendlyDbError(err));
+        }
+      }
+
+      if (thinking) thinking.remove();
+
+      if (results.length === 0 && errors.length > 0) {
+        addChatBubble("bot", `<span>❌ ${escapeHtml(errors[0])}</span>`);
+        return;
+      }
+
+      if (results.length > 1) {
+        // Batch result
+        addChatBubble("bot", formatBatchAddResult(results, errors));
+      } else if (results.length === 1) {
+        // Single result
+        addChatBubble("bot", formatAddResult(results[0]));
+      }
+      return;
+    }
+
+    // Fallback to single parse
+    const result = await executeAssistantIntent(parsedList[0]);
     if (thinking) thinking.remove();
 
     if (!result.ok) {
