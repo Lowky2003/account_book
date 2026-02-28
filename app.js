@@ -56,7 +56,6 @@ const els = {
   cancelCategoryEdit: document.getElementById("cancelCategoryEdit"),
 
   budgetMonth: document.getElementById("budgetMonth"),
-  budgetYear: document.getElementById("budgetYear"),
   budgetScope: document.getElementById("budgetScope"),
 
   txForm: document.getElementById("txForm"),
@@ -227,14 +226,6 @@ function budgetMonthRefDate() {
   const monthValue = els.budgetMonth.value || currentMonthValue();
   const [y, m] = monthValue.split("-").map((x) => Number(x));
   const d = new Date(y, (m || 1) - 1, 1);
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
-
-function budgetYearRefDate() {
-  const y = Number(els.budgetYear.value);
-  const year = Number.isFinite(y) ? y : new Date().getFullYear();
-  const d = new Date(year, 0, 1);
   d.setHours(0, 0, 0, 0);
   return d;
 }
@@ -500,32 +491,10 @@ function ensureStatsYearOptions() {
   }
 }
 
-function ensureBudgetYearOptions() {
-  const years = yearsWithRecords();
-  const current = new Date().getFullYear();
-  if (!years.includes(current)) years.unshift(current);
-
-  const prev = els.budgetYear.value;
-  els.budgetYear.innerHTML = "";
-
-  for (const y of years) {
-    const opt = document.createElement("option");
-    opt.value = String(y);
-    opt.textContent = String(y);
-    els.budgetYear.appendChild(opt);
-  }
-
-  if (prev && years.includes(Number(prev))) {
-    els.budgetYear.value = prev;
-  } else {
-    els.budgetYear.value = String(years[0] || current);
-  }
-}
-
 function renderBudgetScopeLabel() {
   const monthValue = els.budgetMonth.value || currentMonthValue();
-  const yearValue = els.budgetYear.value || String(new Date().getFullYear());
-  els.budgetScope.textContent = `Monthly budgets: ${monthValue} • Yearly budgets: ${yearValue}`;
+  const yearValue = String(budgetMonthRefDate().getFullYear());
+  els.budgetScope.textContent = `Budget month: ${monthValue} • Yearly budgets: ${yearValue}`;
 }
 
 function setStatsInputVisibility() {
@@ -810,22 +779,28 @@ function renderCategoriesTable() {
     return;
   }
 
+  const monthRefDate = budgetMonthRefDate();
+  const monthLabel = els.budgetMonth.value || currentMonthValue();
+
+  const selectedYear = monthRefDate.getFullYear();
+  const yearRefDate = new Date(selectedYear, 0, 1);
+  yearRefDate.setHours(0, 0, 0, 0);
+  const yearLabel = String(selectedYear);
+
   for (const c of categories) {
     const period = c.budgetPeriod || "month";
-    const refDate =
-      period === "month"
-        ? budgetMonthRefDate()
-        : period === "year"
-          ? budgetYearRefDate()
-          : null;
-    const { spent, income, balance } = computeCategoryTotals(c.id, period, refDate);
+    const { spent, income, balance } = computeCategoryTotals(
+      c.id,
+      period,
+      period === "month" ? monthRefDate : period === "year" ? yearRefDate : null
+    );
     const effectiveBudgetBalance = (c.budget || 0) + balance; // budget + revenue - expense
 
     const periodLabel =
       period === "month"
-        ? `Monthly (${els.budgetMonth.value || currentMonthValue()})`
+        ? `Monthly (${monthLabel})`
         : period === "year"
-          ? `Yearly (${els.budgetYear.value || new Date().getFullYear()})`
+          ? `Yearly (${yearLabel})`
           : "Lifetime";
 
     const tr = document.createElement("tr");
@@ -1032,7 +1007,6 @@ async function startListenersForUser(userId) {
     }));
 
     ensureStatsYearOptions();
-    ensureBudgetYearOptions();
     renderBudgetScopeLabel();
     renderAll();
   });
@@ -1056,7 +1030,6 @@ function setSignedOutUi() {
   clearUndoToast();
   clearConfirmToast();
   ensureStatsYearOptions();
-  ensureBudgetYearOptions();
   renderBudgetScopeLabel();
   els.appContent.hidden = true;
   els.authCard.hidden = false;
@@ -1547,11 +1520,6 @@ function wireEvents() {
     renderBudgetScopeLabel();
     renderCategoriesTable();
   });
-
-  els.budgetYear.addEventListener("change", () => {
-    renderBudgetScopeLabel();
-    renderCategoriesTable();
-  });
 }
 
 async function main() {
@@ -1564,7 +1532,6 @@ async function main() {
   ensureStatsYearOptions();
 
   els.budgetMonth.value = currentMonthValue();
-  ensureBudgetYearOptions();
   renderBudgetScopeLabel();
 
   wireEvents();
