@@ -1221,6 +1221,11 @@ body {
   min-width: 0;
   max-width: 100%;
   overflow-x: hidden;
+  /* Allow scrolling within the list on mobile */
+  max-height: 60vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
 }
 
 /* Collapse: hide body instantly */

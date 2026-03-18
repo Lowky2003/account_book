@@ -2320,12 +2320,12 @@ function wireEvents() {
       if (e.key === "Enter" || e.key === " ") { e.preventDefault(); doToggle(); }
     });
 
-    /* Swipe gesture: down to expand, up to collapse */
+    /* Swipe gesture on TOGGLE ONLY: down to expand, up to collapse */
     let touchStartY = 0;
-    section.addEventListener("touchstart", (e) => {
+    toggle.addEventListener("touchstart", (e) => {
       touchStartY = e.touches[0].clientY;
     }, { passive: true });
-    section.addEventListener("touchend", (e) => {
+    toggle.addEventListener("touchend", (e) => {
       const dy = e.changedTouches[0].clientY - touchStartY;
       if (Math.abs(dy) < 40) return; /* ignore small moves */
       if (dy > 0 && section.classList.contains("collapsed")) setCollapsed(false);
@@ -2434,7 +2434,13 @@ function wireEvents() {
     });
   });
 
+  /* Track scrolling so we don't fire button clicks during scroll */
+  let _catScrolling = false;
+  els.categoryTbody.addEventListener("touchstart", () => { _catScrolling = false; }, { passive: true });
+  els.categoryTbody.addEventListener("touchmove", () => { _catScrolling = true; }, { passive: true });
+
   els.categoryTbody.addEventListener("click", async (e) => {
+    if (_catScrolling) { _catScrolling = false; return; }
     const btn = e.target.closest("button");
     if (btn) {
       const action = btn.dataset.action;
