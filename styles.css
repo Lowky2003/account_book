@@ -1181,6 +1181,7 @@ body {
   min-height: 40px;
   transition: transform 0.15s, box-shadow 0.2s;
   box-shadow: var(--shadow-sm);
+  touch-action: manipulation;
 }
 
 .collapsible-toggle:active {
@@ -1226,6 +1227,7 @@ body {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
+  touch-action: pan-y;
 }
 
 /* Collapse: hide body instantly */

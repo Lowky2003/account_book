@@ -2315,22 +2315,27 @@ function wireEvents() {
       setCollapsed(!section.classList.contains("collapsed"));
     };
 
-    toggle.addEventListener("click", doToggle);
+    /* Scroll-aware toggle: ignore taps that were really scrolls */
+    let _toggleTouchMoved = false;
+    let _toggleTouchStartY = 0;
+    toggle.addEventListener("touchstart", (e) => {
+      _toggleTouchMoved = false;
+      _toggleTouchStartY = e.touches[0].clientY;
+    }, { passive: true });
+    toggle.addEventListener("touchmove", (e) => {
+      /* If finger moved more than 10px, it's a scroll, not a tap */
+      if (Math.abs(e.touches[0].clientY - _toggleTouchStartY) > 10) {
+        _toggleTouchMoved = true;
+      }
+    }, { passive: true });
+
+    toggle.addEventListener("click", (e) => {
+      if (_toggleTouchMoved) { _toggleTouchMoved = false; return; }
+      doToggle();
+    });
     toggle.addEventListener("keydown", (e) => {
       if (e.key === "Enter" || e.key === " ") { e.preventDefault(); doToggle(); }
     });
-
-    /* Swipe gesture on TOGGLE ONLY: down to expand, up to collapse */
-    let touchStartY = 0;
-    toggle.addEventListener("touchstart", (e) => {
-      touchStartY = e.touches[0].clientY;
-    }, { passive: true });
-    toggle.addEventListener("touchend", (e) => {
-      const dy = e.changedTouches[0].clientY - touchStartY;
-      if (Math.abs(dy) < 40) return; /* ignore small moves */
-      if (dy > 0 && section.classList.contains("collapsed")) setCollapsed(false);
-      if (dy < 0 && !section.classList.contains("collapsed")) setCollapsed(true);
-    }, { passive: true });
 
     /* Re-measure when content changes (e.g. new records) */
     if (body) {
