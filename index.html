@@ -346,6 +346,48 @@
 
       </div> <!-- .view-container -->
       </div>
+
+      <!-- Edit Transaction Modal -->
+      <div id="editTxModal" class="edit-modal-overlay" hidden>
+        <div class="edit-modal" role="dialog" aria-modal="true" aria-label="Edit Record">
+          <div class="edit-modal-header">
+            <h3>✏️ Edit Record</h3>
+            <button id="closeEditModal" class="btn btn-secondary btn-small" type="button">✕</button>
+          </div>
+          <form id="editTxForm" class="stack" autocomplete="off">
+            <label class="field">
+              <span>Category</span>
+              <select id="editTxCategory" required></select>
+            </label>
+            <div class="grid-2">
+              <label class="field">
+                <span>Type</span>
+                <select id="editTxType" required>
+                  <option value="expense">Expense</option>
+                  <option value="revenue">Revenue</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Amount</span>
+                <input id="editTxAmount" type="number" min="0.01" step="0.01" placeholder="0.00" required />
+              </label>
+            </div>
+            <label class="field">
+              <span>Note</span>
+              <input id="editTxNote" type="text" placeholder="e.g., eat" maxlength="80" />
+            </label>
+            <label class="field">
+              <span>Date</span>
+              <input id="editTxDate" type="date" required />
+            </label>
+            <div class="row wrap">
+              <button id="editTxSaveBtn" class="btn" type="submit">Save</button>
+              <button id="editTxCancelBtn" class="btn btn-secondary" type="button">Cancel</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
     </main>
 
     <!-- Voice / Text Assistant -->

@@ -110,6 +110,17 @@ const els = {
   totalRevenue: document.getElementById("totalRevenue"),
   netTotal: document.getElementById("netTotal"),
   statsTbody: document.getElementById("statsTbody"),
+
+  editTxModal: document.getElementById("editTxModal"),
+  editTxForm: document.getElementById("editTxForm"),
+  editTxCategory: document.getElementById("editTxCategory"),
+  editTxType: document.getElementById("editTxType"),
+  editTxAmount: document.getElementById("editTxAmount"),
+  editTxNote: document.getElementById("editTxNote"),
+  editTxDate: document.getElementById("editTxDate"),
+  editTxSaveBtn: document.getElementById("editTxSaveBtn"),
+  editTxCancelBtn: document.getElementById("editTxCancelBtn"),
+  closeEditModal: document.getElementById("closeEditModal"),
 };
 
 let ChartJs = null;
@@ -1352,6 +1363,65 @@ function startTxEdit(id) {
   els.txAmount.focus();
 }
 
+function openEditModal(id) {
+  const tx = transactions.find((t) => t.id === id);
+  if (!tx) return;
+  editingTransactionId = id;
+
+  // Populate modal category dropdown
+  els.editTxCategory.innerHTML = "";
+  for (const c of categories) {
+    const opt = document.createElement("option");
+    opt.value = c.id;
+    opt.textContent = c.name;
+    els.editTxCategory.appendChild(opt);
+  }
+
+  els.editTxCategory.value = tx.categoryId || "";
+  els.editTxType.value = tx.type || "expense";
+  els.editTxAmount.value = tx.amount != null ? String(tx.amount) : "";
+  els.editTxNote.value = tx.note || "";
+  els.editTxDate.value = tx.dateISO || todayISO();
+
+  els.editTxModal.hidden = false;
+  els.editTxAmount.focus();
+}
+
+function closeEditModal() {
+  els.editTxModal.hidden = true;
+  editingTransactionId = null;
+  els.editTxForm.reset();
+}
+
+async function saveEditModal() {
+  if (!editingTransactionId) return;
+  const categoryId = els.editTxCategory.value;
+  const type = els.editTxType.value;
+  const amount = parsePositiveAmount(els.editTxAmount.value);
+  const note = normalizeText(els.editTxNote.value);
+  const dateISO = els.editTxDate.value;
+
+  if (!categoryId || !dateISO || amount == null) return;
+  if (type !== "expense" && type !== "revenue") return;
+
+  const category = categories.find((c) => c.id === categoryId);
+  const categoryName = category ? category.name : "(Unknown)";
+  const { transactions: txCol } = userCollections(uid);
+
+  await setDoc(doc(txCol, editingTransactionId), {
+    categoryId,
+    categoryName,
+    type,
+    amount,
+    note,
+    noteLower: note.toLowerCase(),
+    dateISO,
+    updatedAt: serverTimestamp(),
+  }, { merge: true });
+
+  closeEditModal();
+}
+
 function cancelTxEdit() {
   editingTransactionId = null;
   els.txForm.reset();
@@ -2568,7 +2638,7 @@ function wireEvents() {
       return;
     }
     if (action === "edit-tx") {
-      startTxEdit(id);
+      openEditModal(id);
       return;
     }
   });
@@ -2598,6 +2668,29 @@ function wireEvents() {
   if (els.cancelTxEdit) {
     els.cancelTxEdit.addEventListener("click", () => {
       cancelTxEdit();
+    });
+  }
+
+  // Edit modal event listeners
+  if (els.closeEditModal) {
+    els.closeEditModal.addEventListener("click", closeEditModal);
+  }
+  if (els.editTxCancelBtn) {
+    els.editTxCancelBtn.addEventListener("click", closeEditModal);
+  }
+  if (els.editTxModal) {
+    els.editTxModal.addEventListener("click", (e) => {
+      if (e.target === els.editTxModal) closeEditModal();
+    });
+  }
+  if (els.editTxForm) {
+    els.editTxForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      try {
+        await saveEditModal();
+      } catch (err) {
+        setAppError(friendlyDbError(err));
+      }
     });
   }
 
