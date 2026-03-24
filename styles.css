@@ -1917,3 +1917,271 @@ body {
 .recurring-info .recurring-name { font-weight: 700; }
 .recurring-info .recurring-detail { color: var(--muted); font-size: 12px; margin-top: 2px; }
 
+/* ==============================================
+   MOBILE ENHANCEMENTS
+   ============================================== */
+
+/* -- Disable hover effects on touch devices -- */
+@media (hover: none) {
+  .btn:hover { filter: none; transform: none; }
+  .sidebar-item:hover { background: transparent; }
+  .collapsible-toggle:hover { filter: none; }
+  .quick-chip:hover { filter: none; transform: none; }
+  .auto-cat-hint:hover { opacity: 1; text-decoration: none; }
+  .table tbody tr:hover { background: var(--card); }
+}
+
+/* -- Modal responsiveness for ≤979px -- */
+@media (max-width: 979px) {
+  /* Edit modal: bottom-sheet style */
+  .edit-modal-overlay {
+    align-items: flex-end;
+  }
+  .edit-modal {
+    width: 100%;
+    max-width: 100%;
+    max-height: 92vh;
+    border-radius: 20px 20px 0 0;
+    padding: 20px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+    animation: modalSlideUp 0.3s ease;
+  }
+  @keyframes modalSlideUp {
+    from { opacity: 0; transform: translateY(100%); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Receipt modal: full width */
+  .receipt-scan-body .edit-modal,
+  #receiptModal .edit-modal {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  /* Dashboard cards: 2 cols on small tablets, stack nicely */
+  .dashboard-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+  .dash-card {
+    padding: 12px 10px;
+  }
+  .dash-card-value {
+    font-size: 18px;
+  }
+  .dash-card-icon {
+    font-size: 24px;
+  }
+
+  /* Dashboard recent items: stack on mobile */
+  .dash-recent-item {
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 10px 12px;
+  }
+  .dash-recent-item .dash-tx-note {
+    order: 3;
+    flex-basis: 100%;
+    margin-left: 0;
+    font-size: 12px;
+  }
+
+  /* Goal cards */
+  .goal-card {
+    padding: 14px 12px;
+  }
+  .goal-card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+  .goal-actions .btn {
+    min-height: 44px;
+    flex: 1;
+  }
+
+  /* Recurring cards: stack on mobile */
+  .recurring-card {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 14px 12px;
+  }
+  .recurring-card .btn {
+    width: 100%;
+    text-align: center;
+    min-height: 44px;
+  }
+
+  /* Settings: full width elements */
+  #currencySymbolInput {
+    max-width: 100% !important;
+  }
+
+  /* Grid helpers for new forms */
+  .grid-3-budget,
+  .grid-2 {
+    grid-template-columns: 1fr;
+  }
+
+  /* Collapsible toggle: enforce 44px touch target */
+  .collapsible-toggle {
+    min-height: 44px;
+  }
+
+  /* Full-width buttons everywhere */
+  .goal-actions,
+  .recurring-card .btn,
+  #runRecurringBtn,
+  #saveCurrencyBtn,
+  #exportJsonBtn,
+  #exportPdfBtn {
+    width: 100%;
+    text-align: center;
+  }
+
+  /* Settings row wrap: stack on mobile */
+  .view-section[data-view="settings"] .row.wrap {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .view-section[data-view="settings"] .row.wrap .btn,
+  .view-section[data-view="settings"] .row.wrap label.btn {
+    width: 100%;
+    text-align: center;
+  }
+}
+
+/* -- Extra-small screens (≤400px) -- */
+@media (max-width: 400px) {
+  /* Single column dashboard */
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dash-card-value {
+    font-size: 16px;
+  }
+
+  /* Smaller section headings */
+  .dash-section h3 {
+    font-size: 14px;
+  }
+
+  /* Compact goal cards */
+  .goal-card-header h4 {
+    font-size: 13px;
+  }
+
+  /* Cancel/confirm buttons in modals */
+  .edit-modal .row.wrap {
+    flex-direction: column;
+  }
+  .edit-modal .row.wrap .btn {
+    width: 100%;
+  }
+}
+
+/* -- Ultra-small screens (≤360px) -- */
+@media (max-width: 360px) {
+  .edit-modal {
+    padding: 16px 12px calc(12px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .dash-card {
+    padding: 10px 8px;
+  }
+  .dash-card-value {
+    font-size: 15px;
+  }
+  .dash-card-label {
+    font-size: 10px;
+  }
+  .dash-card-icon {
+    font-size: 20px;
+  }
+
+  .recurring-info .recurring-name {
+    font-size: 13px;
+  }
+
+  /* Sidebar narrower on ultra-small */
+  .sidebar {
+    width: 240px;
+  }
+}
+
+/* -- Landscape on small phones -- */
+@media (max-height: 500px) and (orientation: landscape) {
+  /* Reduce vertical spacing */
+  .card {
+    padding: 10px;
+  }
+  .stack {
+    gap: 8px;
+  }
+
+  /* Modal takes full height */
+  .edit-modal {
+    max-height: 100vh;
+    border-radius: 0;
+  }
+  .edit-modal-overlay {
+    align-items: stretch;
+  }
+
+  /* Shrink header */
+  .app-header .container {
+    padding: 4px 0;
+  }
+
+  /* Dashboard grid horizontal */
+  .dashboard-grid {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+  }
+  .dash-card {
+    padding: 8px 6px;
+  }
+  .dash-card-icon {
+    font-size: 18px;
+    margin-bottom: 0;
+  }
+  .dash-card-value {
+    font-size: 14px;
+  }
+}
+
+/* -- Global touch optimization -- */
+@media (pointer: coarse) {
+  /* Ensure all interactive elements meet 44px min tap target */
+  button, .btn, select, input[type="submit"], input[type="button"],
+  .sidebar-item, .collapsible-toggle, .quick-chip,
+  [data-action], .clickable-row {
+    min-height: 44px;
+  }
+
+  /* Prevent text selection on interactive elements */
+  button, .btn, .sidebar-item, .collapsible-toggle, .quick-chip {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* Faster touch response */
+  a, button, .btn, .sidebar-item, .clickable-row, .quick-chip, [data-action] {
+    touch-action: manipulation;
+  }
+
+  /* Visible active states for touch feedback */
+  .btn:active {
+    transform: scale(0.97);
+    opacity: 0.85;
+  }
+  .sidebar-item:active {
+    background: var(--row-hover);
+    transform: scale(0.98);
+  }
+  .quick-chip:active {
+    transform: scale(0.95);
+  }
+}
+
