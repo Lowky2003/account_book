@@ -3022,7 +3022,9 @@ async function renderTrendChart() {
       if (!months.includes(m)) continue;
       catTotals.set(tx.categoryId, (catTotals.get(tx.categoryId) || 0) + tx.amount);
     }
-    const topCats = [...catTotals.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([id]) => id);
+    const topCats = [...catTotals.entries()]
+      .filter(([id]) => categories.some((c) => c.id === id))
+      .sort((a, b) => b[1] - a[1]).slice(0, 5).map(([id]) => id);
 
     const colors = ["#7c5cfc", "#e54360", "#22c55e", "#e89420", "#3b82f6"];
     const datasets = topCats.map((catId, i) => {
