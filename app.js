@@ -3751,31 +3751,11 @@ function initBankAmountInput(el) {
     return s.slice(0, -2) + "." + s.slice(-2);
   }
 
-  function publish() {
-    el.dispatchEvent(new Event("input", { bubbles: true }));
-  }
-
-  el.addEventListener("keydown", (e) => {
-    if (e.key >= "0" && e.key <= "9") {
-      e.preventDefault();
-      if (cents >= 9_999_999) return;
-      cents = cents * 10 + Number(e.key);
-      el.value = cents === 0 ? "" : fmt(cents);
-      publish();
-    } else if (e.key === "Backspace") {
-      e.preventDefault();
-      cents = Math.floor(cents / 10);
-      el.value = cents === 0 ? "" : fmt(cents);
-      publish();
-    } else if (e.key === "Delete") {
-      e.preventDefault();
-      cents = 0;
-      el.value = "";
-      publish();
-    }
-  });
-
-  // Sync from mobile autofill / paste
+  // Single source of truth: rebuild cents from whatever digits are in the
+  // field. This works identically on desktop and mobile. We intentionally do
+  // NOT manipulate the value in keydown, because on mobile virtual keyboards
+  // preventDefault() does not stop character insertion, which caused each
+  // digit to be counted twice (e.g. typing "1" produced "0.11" not "0.01").
   el.addEventListener("input", () => {
     const raw = el.value.replace(/[^0-9]/g, "");
     if (!raw) { cents = 0; el.value = ""; return; }
