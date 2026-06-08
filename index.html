@@ -944,6 +944,18 @@
         <img id="receiptLightboxImg" alt="Receipt full view" />
       </div>
 
+      <!-- Day Detail Modal -->
+      <div id="dayDetailModal" class="edit-modal-overlay" hidden>
+        <div class="edit-modal" role="dialog" aria-modal="true" aria-labelledby="dayDetailTitle">
+          <div class="edit-modal-header">
+            <h3 id="dayDetailTitle">📅 Day</h3>
+            <button id="closeDayDetail" class="btn btn-secondary btn-small" type="button">✕</button>
+          </div>
+          <div id="dayDetailSummary" class="day-detail-summary"></div>
+          <div id="dayDetailList" class="day-detail-list"></div>
+        </div>
+      </div>
+
     </main>
 
     <!-- Voice / Text Assistant -->

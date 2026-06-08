@@ -3519,11 +3519,54 @@ function renderHeatmapCalendar() {
     const intensity = maxSpend > 0 ? spend / maxSpend : 0;
     let level = 0;
     if (spend > 0) level = intensity > 0.66 ? 3 : intensity > 0.33 ? 2 : 1;
-    const title = spend > 0 ? `${monthKey}-${String(day).padStart(2, "0")}: ${money(spend)}` : "No spending";
-    html += `<div class="heatmap-cell heatmap-l${level}" title="${escapeHtml(title)}"><span class="heatmap-daynum">${day}</span></div>`;
+    const dateISO = `${monthKey}-${String(day).padStart(2, "0")}`;
+    const title = spend > 0 ? `${dateISO}: ${money(spend)} — tap for details` : `${dateISO} — tap for details`;
+    html += `<div class="heatmap-cell heatmap-l${level} heatmap-clickable" data-date="${dateISO}" title="${escapeHtml(title)}"><span class="heatmap-daynum">${day}</span></div>`;
   }
 
   wrap.innerHTML = html;
+}
+
+function openDayDetail(dateISO) {
+  const modal = document.getElementById("dayDetailModal");
+  const title = document.getElementById("dayDetailTitle");
+  const summary = document.getElementById("dayDetailSummary");
+  const list = document.getElementById("dayDetailList");
+  if (!modal) return;
+
+  const dayTxs = transactions.filter((t) => t.dateISO === dateISO);
+  let expense = 0, income = 0;
+  for (const t of dayTxs) {
+    if (t.type === "expense") expense += t.amount;
+    else income += t.amount;
+  }
+
+  if (title) title.textContent = `📅 ${dateISO}`;
+  if (summary) {
+    summary.innerHTML = `
+      <span class="day-detail-stat"><span class="muted small">Expense</span><b class="mom-delta expense">${money(expense)}</b></span>
+      <span class="day-detail-stat"><span class="muted small">Income</span><b class="mom-delta revenue">${money(income)}</b></span>
+      <span class="day-detail-stat"><span class="muted small">Net</span><b>${money(income - expense)}</b></span>`;
+  }
+  if (list) {
+    if (!dayTxs.length) {
+      list.innerHTML = '<div class="muted small">No transactions on this day.</div>';
+    } else {
+      list.innerHTML = dayTxs.map((t) => {
+        const exp = t.type === "expense";
+        return `<div class="day-detail-item">
+          <span class="day-detail-cat">${escapeHtml(t.categoryName || "")}${t.note ? ` <span class="muted small">${escapeHtml(t.note)}</span>` : ""}</span>
+          <span class="mom-delta ${exp ? "expense" : "revenue"}">${exp ? "-" : "+"}${money(t.amount)}</span>
+        </div>`;
+      }).join("");
+    }
+  }
+  modal.hidden = false;
+}
+
+function closeDayDetail() {
+  const modal = document.getElementById("dayDetailModal");
+  if (modal) modal.hidden = true;
 }
 
 /* ─── Budget browser notifications ─── */
@@ -5247,6 +5290,23 @@ function wireEvents() {
   }
   const receiptLightbox = document.getElementById("receiptLightbox");
   if (receiptLightbox) receiptLightbox.addEventListener("click", closeLightbox);
+
+  // ── Calendar day detail ──
+  const heatmapCalendar = document.getElementById("heatmapCalendar");
+  if (heatmapCalendar) {
+    heatmapCalendar.addEventListener("click", (e) => {
+      const cell = e.target.closest("[data-date]");
+      if (cell && cell.dataset.date) openDayDetail(cell.dataset.date);
+    });
+  }
+  const closeDayDetailBtn = document.getElementById("closeDayDetail");
+  if (closeDayDetailBtn) closeDayDetailBtn.addEventListener("click", closeDayDetail);
+  const dayDetailModal = document.getElementById("dayDetailModal");
+  if (dayDetailModal) {
+    dayDetailModal.addEventListener("click", (e) => {
+      if (e.target === dayDetailModal) closeDayDetail();
+    });
+  }
 
   // ── Recurring Transactions ──
   const recurringForm = document.getElementById("recurringForm");

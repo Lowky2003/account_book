@@ -3301,4 +3301,39 @@ input:focus, select:focus {
 .heatmap-l3 { background: rgba(255, 61, 240, 0.55); border-color: var(--hud-magenta, #ff3df0); }
 .heatmap-l2 .heatmap-daynum,
 .heatmap-l3 .heatmap-daynum { color: #fff; opacity: 1; }
+.heatmap-clickable { cursor: pointer; transition: outline 0.12s ease; }
+.heatmap-clickable:hover { outline: 2px solid var(--primary); outline-offset: -2px; }
+
+/* -- Day detail modal -- */
+.day-detail-summary {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.day-detail-stat {
+  flex: 1;
+  min-width: 90px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px;
+  background: var(--stat-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.day-detail-stat b { font-size: 15px; font-variant-numeric: tabular-nums; }
+.day-detail-list { display: flex; flex-direction: column; gap: 6px; max-height: 50vh; overflow-y: auto; }
+.day-detail-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--stat-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+.day-detail-cat { min-width: 0; }
 
