@@ -3195,6 +3195,93 @@ function renderDashboard() {
   }
 
   renderHeatmapCalendar();
+  renderMonthComparison();
+}
+
+function renderMonthComparison() {
+  const summary = document.getElementById("momSummary");
+  const catsEl = document.getElementById("momCategories");
+  if (!summary) return;
+
+  const now = new Date();
+  const thisMonth = currentMonthValue(now);
+  const lastMonth = currentMonthValue(new Date(now.getFullYear(), now.getMonth() - 1, 1));
+
+  const agg = (month) => {
+    let expense = 0, income = 0;
+    const byCat = {};
+    for (const t of transactions) {
+      if (!t.dateISO || t.dateISO.substring(0, 7) !== month) continue;
+      if (t.type === "expense") {
+        expense += t.amount;
+        byCat[t.categoryId] = (byCat[t.categoryId] || 0) + t.amount;
+      } else {
+        income += t.amount;
+      }
+    }
+    return { expense, income, byCat };
+  };
+
+  const cur = agg(thisMonth);
+  const prev = agg(lastMonth);
+
+  if (!cur.expense && !cur.income && !prev.expense && !prev.income) {
+    summary.innerHTML = '<div class="muted small">Not enough data to compare yet.</div>';
+    if (catsEl) catsEl.innerHTML = "";
+    return;
+  }
+
+  // higherIsBad: for expense, an increase is "bad" (red); for income it's "good" (green)
+  const deltaRow = (label, curVal, prevVal, higherIsBad) => {
+    const diff = curVal - prevVal;
+    const pct = prevVal > 0 ? Math.round((diff / prevVal) * 100) : (curVal > 0 ? 100 : 0);
+    const flat = diff === 0;
+    const up = diff > 0;
+    const arrow = flat ? "→" : up ? "↑" : "↓";
+    const cls = flat ? "" : (up !== higherIsBad ? "revenue" : "expense");
+    const sign = diff > 0 ? "+" : "";
+    return `<div class="mom-row">
+      <span class="mom-label">${label}</span>
+      <span class="mom-vals">${money(curVal)} <span class="muted small">vs ${money(prevVal)}</span></span>
+      <span class="mom-delta ${cls}">${arrow} ${sign}${money(diff)}${prevVal > 0 ? ` (${sign}${pct}%)` : ""}</span>
+    </div>`;
+  };
+
+  summary.innerHTML =
+    deltaRow("Expense", cur.expense, prev.expense, true) +
+    deltaRow("Income", cur.income, prev.income, false);
+
+  // Biggest per-category expense changes
+  const catIds = new Set([...Object.keys(cur.byCat), ...Object.keys(prev.byCat)]);
+  const changes = [];
+  for (const id of catIds) {
+    const c = cur.byCat[id] || 0;
+    const p = prev.byCat[id] || 0;
+    const diff = c - p;
+    if (diff === 0) continue;
+    const cat = categories.find((x) => x.id === id);
+    changes.push({ name: cat ? cat.name : "Uncategorized", p, diff });
+  }
+  changes.sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
+  const top = changes.slice(0, 4);
+
+  if (catsEl) {
+    if (!top.length) {
+      catsEl.innerHTML = '<div class="muted small">No category changes vs last month.</div>';
+    } else {
+      catsEl.innerHTML = '<div class="mom-cat-title muted small">Biggest category changes</div>' + top.map((x) => {
+        const up = x.diff > 0;
+        const arrow = up ? "↑" : "↓";
+        const cls = up ? "expense" : "revenue";
+        const sign = up ? "+" : "";
+        const pct = x.p > 0 ? ` (${sign}${Math.round((x.diff / x.p) * 100)}%)` : "";
+        return `<div class="mom-cat-row">
+          <span>${escapeHtml(x.name)}</span>
+          <span class="mom-delta ${cls}">${arrow} ${sign}${money(x.diff)}${pct}</span>
+        </div>`;
+      }).join("");
+    }
+  }
 }
 
 /* ─── Category Trends Chart ─── */

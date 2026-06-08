@@ -2062,6 +2062,32 @@ body {
 }
 .alloc-bar.over { background: var(--danger); }
 #allocNote { margin-top: 8px; }
+
+/* -- Month-over-month comparison -- */
+.mom-summary { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.mom-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 14px;
+}
+.mom-label { font-weight: 700; min-width: 70px; }
+.mom-vals { flex: 1; font-variant-numeric: tabular-nums; }
+.mom-delta { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mom-delta.expense { color: var(--danger); }
+.mom-delta.revenue { color: var(--success); }
+.mom-categories { margin-top: 12px; }
+.mom-cat-title { margin-bottom: 6px; }
+.mom-cat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+}
 .dash-recent-list {
   display: flex;
   flex-direction: column;
