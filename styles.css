@@ -2372,6 +2372,8 @@ body {
   }
   .budget-records-table-wrap {
     max-height: 40vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
   .budget-records-modal .pager {
     flex-direction: column;
